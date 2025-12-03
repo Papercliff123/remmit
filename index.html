@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REMMIT - Global Money Transfer</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Three.js & Anime.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        remmit: {
+                            bg: '#011515', 
+                            card: '#0F3D3E', 
+                            cardLight: '#164e4f',
+                            accent: '#F2F2F2',
+                            highlight: '#2DD4BF',
+                            success: '#84cc16'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Space Grotesk', 'sans-serif'],
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'float-delayed': 'float 6s ease-in-out 3s infinite',
+                        'blob': 'blob 7s infinite',
+                        'scroll': 'scroll 20s linear infinite',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-20px)' },
+                        },
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        },
+                        scroll: {
+                            '0%': { transform: 'translateX(0)' },
+                            '100%': { transform: 'translateX(-100%)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #011515;
+            color: white;
+            overflow-x: hidden;
+        }
+
+        /* 3D Canvas */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.8;
+            pointer-events: none;
+        }
+
+        /* UI Utilities */
+        .glass-card {
+            background: rgba(15, 61, 62, 0.4);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.05),
+                transparent
+            );
+            transition: 0.5s;
+        }
+
+        .glass-card:hover::before {
+            left: 100%;
+        }
+
+        .glass-card:hover {
+            border-color: #2DD4BF;
+            box-shadow: 0 0 30px rgba(45, 212, 191, 0.15);
+            transform: translateY(-5px);
+            background: rgba(15, 61, 62, 0.6);
+        }
+        
+        .nav-link.active {
+            color: #2DD4BF;
+            background: rgba(45, 212, 191, 0.1);
+            border-radius: 0.5rem;
+        }
+
+        .view-section {
+            display: none;
+            opacity: 0;
+            padding-top: 100px;
+            min-height: 100vh;
+        }
+
+        .view-section.active-view {
+            display: block;
+        }
+
+        /* Pie Chart CSS */
+        .pie-chart {
+            background: conic-gradient(
+                #ef4444 0% 35%, 
+                #22c55e 35% 60%, 
+                #fbbf24 60% 85%, 
+                #a855f7 85% 100%
+            );
+            border-radius: 50%;
+        }
+        .pie-hole {
+            background: #0F3D3E;
+        }
+        
+        .custom-radio:checked + div {
+            border-color: #2DD4BF;
+            background-color: rgba(45, 212, 191, 0.1);
+        }
+
+        .text-gradient {
+            background: linear-gradient(135deg, #FFFFFF 0%, #2DD4BF 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(45,212,191,0.3);
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(45,212,191,0.6);
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-teal-500 selection:text-black">
+
+    <!-- 3D Background -->
+    <div id="canvas-container"></div>
+
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 top-0 bg-black/50 backdrop-blur-lg border-b border-white/5 transition-all duration-300" id="navbar">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="text-2xl font-display font-bold tracking-wider cursor-pointer flex items-center gap-2" onclick="router.navigate('landing')">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-teal-400 to-blue-500 flex items-center justify-center text-black font-bold text-lg">R</div>
+                REMMIT
+            </div>
+            
+            <div class="hidden md:flex items-center space-x-1 text-sm font-medium text-gray-400">
+                <button onclick="router.navigate('dashboard')" class="nav-link px-4 py-2 hover:text-white transition-colors rounded-lg">Dashboard</button>
+                <button onclick="router.navigate('send')" class="nav-link px-4 py-2 hover:text-white transition-colors rounded-lg">Send</button>
+                <button onclick="router.navigate('activity')" class="nav-link px-4 py-2 hover:text-white transition-colors rounded-lg">Activity</button>
+                <button onclick="router.navigate('support')" class="nav-link px-4 py-2 hover:text-white transition-colors rounded-lg">Support</button>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <div id="auth-buttons" class="flex items-center space-x-3">
+                    <button onclick="router.navigate('signin')" class="px-5 py-2 text-gray-300 hover:text-white text-sm font-medium transition-colors">Sign In</button>
+                    <button onclick="router.navigate('signup')" class="px-5 py-2 bg-white text-black font-bold rounded-full text-sm hover:bg-teal-50 transition-all hover:scale-105 shadow-[0_0_15px_rgba(255,255,255,0.3)]">Sign Up</button>
+                </div>
+                
+                <div id="user-profile" class="hidden flex items-center space-x-4">
+                    <div class="text-right hidden sm:block">
+                        <div class="text-xs text-gray-400">Welcome back</div>
+                        <div class="text-sm font-bold">Syalomita Lim</div>
+                    </div>
+                    <div class="relative group cursor-pointer">
+                        <img src="https://i.pravatar.cc/150?img=5" class="w-10 h-10 rounded-full border-2 border-teal-500" alt="Profile">
+                        <div class="absolute w-3 h-3 bg-green-500 rounded-full bottom-0 right-0 border border-black"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ================= VIEW: LANDING ================= -->
+    <div id="view-landing" class="view-section active-view !pt-0 relative overflow-hidden">
+        
+        <div class="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-teal-500/10 rounded-full blur-[120px] -z-10 animate-pulse"></div>
+        <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[100px] -z-10"></div>
+        
+        <div class="absolute top-40 left-20 w-24 h-24 rounded-full border border-teal-500/20 animate-float hidden lg:block"></div>
+        <div class="absolute bottom-40 right-20 w-32 h-32 rounded-full border border-white/10 animate-float-delayed hidden lg:block"></div>
+
+        <header class="relative min-h-screen flex items-center justify-center pt-20 flex-col">
+            <div class="text-center px-4 max-w-5xl mx-auto z-10 relative">
+                
+                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-teal-400 text-sm font-medium mb-8 backdrop-blur-sm hero-text opacity-0">
+                    <span class="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
+                    The Future of Payments is Here
+                </div>
+
+                <h1 class="text-7xl md:text-9xl font-display font-bold mb-8 tracking-tighter leading-[0.9] hero-text opacity-0">
+                    GLOBAL <br /> 
+                    <span class="text-gradient">TRANSFERS</span>
+                </h1>
+                
+                <p class="text-xl md:text-2xl text-gray-400 mb-12 max-w-2xl mx-auto font-light hero-text opacity-0 leading-relaxed">
+                    Send money across borders with <span class="text-white font-medium">zero friction</span>. 
+                    Powered by blockchain for instant, secure, and low-fee transactions.
+                </p>
+                
+                <div class="flex flex-col md:flex-row justify-center items-center gap-6 hero-btn opacity-0">
+                    <button onclick="router.navigate('dashboard')" class="group relative px-8 py-4 bg-transparent overflow-hidden rounded-full text-lg font-medium text-white shadow-2xl transition-all">
+                        <span class="absolute inset-0 w-full h-full -mt-1 rounded-lg opacity-30 bg-gradient-to-b from-transparent via-transparent to-gray-700"></span>
+                        <span class="relative border-b border-white hover:border-teal-400 transition-colors">View Live Demo</span>
+                    </button>
+                    
+                    <button onclick="router.navigate('signup')" class="px-10 py-4 bg-teal-500 text-black rounded-full text-lg font-bold hover:bg-teal-400 shadow-[0_0_40px_rgba(45,212,191,0.4)] transition-all duration-300 hover:-translate-y-1 w-full md:w-auto">
+                        Get Started Now
+                    </button>
+                </div>
+
+                <!-- Live Ticker -->
+                <div class="mt-20 w-full max-w-4xl mx-auto overflow-hidden border-y border-white/5 bg-black/20 backdrop-blur-sm">
+                    <div class="flex animate-scroll whitespace-nowrap py-3">
+                        <div class="flex gap-12 items-center mx-6 opacity-70">
+                            <span class="flex items-center gap-2 font-mono text-sm"><i class="ph-fill ph-currency-btc text-orange-500"></i> BTC $94,320 <span class="text-green-500 text-xs">+2.4%</span></span>
+                            <span class="flex items-center gap-2 font-mono text-sm"><i class="ph-fill ph-currency-eth text-purple-500"></i> ETH $3,450 <span class="text-green-500 text-xs">+1.8%</span></span>
+                            <span class="flex items-center gap-2 font-mono text-sm"><i class="ph-fill ph-currency-circle-dollar text-teal-500"></i> SOL $145 <span class="text-red-500 text-xs">-0.5%</span></span>
+                            <span class="flex items-center gap-2 font-mono text-sm"><i class="ph-fill ph-coins text-yellow-500"></i> BNB $610 <span class="text-green-500 text-xs">+0.2%</span></span>
+                            <!-- Duplicate -->
+                            <span class="flex items-center gap-2 font-mono text-sm"><i class="ph-fill ph-currency-btc text-orange-500"></i> BTC $94,320 <span class="text-green-500 text-xs">+2.4%</span></span>
+                            <span class="flex items-center gap-2 font-mono text-sm"><i class="ph-fill ph-currency-eth text-purple-500"></i> ETH $3,450 <span class="text-green-500 text-xs">+1.8%</span></span>
+                            <span class="flex items-center gap-2 font-mono text-sm"><i class="ph-fill ph-currency-circle-dollar text-teal-500"></i> SOL $145 <span class="text-red-500 text-xs">-0.5%</span></span>
+                            <span class="flex items-center gap-2 font-mono text-sm"><i class="ph-fill ph-coins text-yellow-500"></i> BNB $610 <span class="text-green-500 text-xs">+0.2%</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Restored -->
+                <div class="mt-12 grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12 pt-10">
+                    <div class="stat-item opacity-0">
+                        <div class="text-3xl md:text-4xl font-display font-bold mb-1 text-white" id="stat-users">0</div>
+                        <div class="text-xs text-gray-500 uppercase tracking-widest font-semibold">Active Users</div>
+                    </div>
+                    <div class="stat-item opacity-0">
+                        <div class="text-3xl md:text-4xl font-display font-bold mb-1 text-white"><span id="stat-volume">0</span>B</div>
+                        <div class="text-xs text-gray-500 uppercase tracking-widest font-semibold">Total Volume</div>
+                    </div>
+                    <div class="stat-item opacity-0">
+                        <div class="text-3xl md:text-4xl font-display font-bold mb-1 text-white" id="stat-countries">0</div>
+                        <div class="text-xs text-gray-500 uppercase tracking-widest font-semibold">Countries</div>
+                    </div>
+                     <div class="stat-item opacity-0">
+                        <div class="text-3xl md:text-4xl font-display font-bold mb-1 text-white"><span id="stat-speed">0</span>s</div>
+                        <div class="text-xs text-gray-500 uppercase tracking-widest font-semibold">Avg Time</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Features -->
+        <section class="py-24 px-6 relative z-10">
+            <div class="max-w-7xl mx-auto">
+                <div class="text-center mb-16">
+                    <h2 class="text-3xl md:text-4xl font-display font-bold mb-4">Why Choose REMMIT?</h2>
+                    <p class="text-gray-400 max-w-xl mx-auto">Experience the next generation of financial technology with features designed for speed and security.</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Features content same as before -->
+                    <div class="glass-card p-10 rounded-3xl cursor-pointer feature-card opacity-0 group">
+                        <div class="w-14 h-14 bg-teal-500/10 rounded-2xl flex items-center justify-center mb-6 text-teal-400 group-hover:scale-110 transition-transform duration-300 border border-teal-500/20">
+                            <i class="ph ph-trend-down text-3xl"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-3 group-hover:text-teal-400 transition-colors">Low Fee</h3>
+                        <p class="text-gray-400 leading-relaxed group-hover:text-gray-300">
+                            Competitive and transparent fees for every transaction. Save up to 80% compared to traditional banks.
+                        </p>
+                    </div>
+                     <div class="glass-card p-10 rounded-3xl cursor-pointer feature-card opacity-0 group">
+                        <div class="w-14 h-14 bg-purple-500/10 rounded-2xl flex items-center justify-center mb-6 text-purple-400 group-hover:scale-110 transition-transform duration-300 border border-purple-500/20">
+                            <i class="ph ph-globe-hemisphere-west text-3xl"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-3 group-hover:text-purple-400 transition-colors">Global & Decentralized</h3>
+                        <p class="text-gray-400 leading-relaxed group-hover:text-gray-300">
+                            Send to 150+ countries instantly. Powered by blockchain technology for borderless finance without limits.
+                        </p>
+                    </div>
+                     <div class="glass-card p-10 rounded-3xl cursor-pointer feature-card opacity-0 group">
+                        <div class="w-14 h-14 bg-yellow-500/10 rounded-2xl flex items-center justify-center mb-6 text-yellow-400 group-hover:scale-110 transition-transform duration-300 border border-yellow-500/20">
+                            <i class="ph ph-lightning text-3xl"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-3 group-hover:text-yellow-400 transition-colors">Instant Transfer</h3>
+                        <p class="text-gray-400 leading-relaxed group-hover:text-gray-300">
+                            Lightning fast settlement. Your money arrives in seconds, not days. No more waiting for "business days".
+                        </p>
+                    </div>
+                     <div class="glass-card p-10 rounded-3xl cursor-pointer feature-card opacity-0 group">
+                        <div class="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 text-blue-400 group-hover:scale-110 transition-transform duration-300 border border-blue-500/20">
+                            <i class="ph ph-shield-check text-3xl"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-3 group-hover:text-blue-400 transition-colors">Bank-Grade Security</h3>
+                        <p class="text-gray-400 leading-relaxed group-hover:text-gray-300">
+                            Protected by military-grade encryption and audited smart contracts. Your assets are safe with us.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="bg-black py-12 px-6 border-t border-white/10 relative z-10">
+            <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start">
+                <div class="mb-8 md:mb-0">
+                    <div class="text-2xl font-display font-bold mb-4 flex items-center gap-2">
+                        <div class="w-6 h-6 rounded bg-teal-500"></div> REMMIT
+                    </div>
+                    <p class="text-gray-500 text-sm max-w-xs leading-relaxed">
+                        The world's most trusted decentralized payment platform. Join the financial revolution today.
+                    </p>
+                    <div class="flex gap-4 mt-6">
+                        <a href="#" class="text-gray-400 hover:text-white"><i class="ph-fill ph-twitter-logo text-xl"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-white"><i class="ph-fill ph-instagram-logo text-xl"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-white"><i class="ph-fill ph-discord-logo text-xl"></i></a>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-12 text-sm text-gray-400">
+                    <div class="flex flex-col space-y-3">
+                        <span class="text-white font-bold mb-2">Platform</span>
+                        <a href="#" onclick="router.navigate('dashboard')" class="hover:text-teal-400 transition-colors">Dashboard</a>
+                        <a href="#" onclick="router.navigate('send')" class="hover:text-teal-400 transition-colors">Send Money</a>
+                        <a href="#" onclick="router.navigate('activity')" class="hover:text-teal-400 transition-colors">Activity</a>
+                    </div>
+                    <div class="flex flex-col space-y-3">
+                        <span class="text-white font-bold mb-2">Support</span>
+                        <a href="#" onclick="router.navigate('support')" class="hover:text-teal-400 transition-colors">Help Center</a>
+                        <a href="#" class="hover:text-teal-400 transition-colors">API Docs</a>
+                        <a href="#" class="hover:text-teal-400 transition-colors">Contact Us</a>
+                    </div>
+                     <div class="flex flex-col space-y-3">
+                        <span class="text-white font-bold mb-2">Legal</span>
+                        <a href="#" class="hover:text-teal-400 transition-colors">Privacy Policy</a>
+                        <a href="#" class="hover:text-teal-400 transition-colors">Terms of Service</a>
+                    </div>
+                </div>
+            </div>
+            <div class="max-w-7xl mx-auto mt-12 pt-8 border-t border-white/5 text-xs text-gray-600 text-center flex flex-col md:flex-row justify-between items-center">
+                <span>&copy; 2025 REMMIT Inc. All rights reserved.</span>
+                <span class="flex items-center gap-2 mt-2 md:mt-0"><span class="w-2 h-2 rounded-full bg-green-500"></span> Systems Operational</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ================= VIEW: DASHBOARD (Rest of dashboard code is same as prior version) ================= -->
+    <div id="view-dashboard" class="view-section">
+        <div class="max-w-7xl mx-auto px-6 pb-20 relative">
+            <div class="absolute top-20 right-20 w-96 h-96 bg-teal-500/5 rounded-full blur-[100px] pointer-events-none"></div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <!-- Stats similar to previous turn -->
+                 <div class="glass-card p-6 rounded-2xl flex flex-col justify-between h-36 border-t-2 border-t-transparent hover:border-t-teal-400 group">
+                    <div class="flex justify-between items-start">
+                        <div class="text-gray-400 text-sm font-medium uppercase tracking-wider">Total Txns</div>
+                        <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-teal-500/20 transition-colors">
+                            <i class="ph ph-swap text-teal-400"></i>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-end">
+                        <div class="text-4xl font-display font-bold text-white group-hover:scale-105 transition-transform origin-left">102</div>
+                        <div class="text-xs text-teal-400 flex items-center gap-1 bg-teal-500/10 px-2 py-1 rounded">
+                            <i class="ph-bold ph-trend-up"></i> +12%
+                        </div>
+                    </div>
+                </div>
+                <div class="glass-card p-6 rounded-2xl flex flex-col justify-between h-36 border-t-2 border-t-transparent hover:border-t-yellow-500 group">
+                    <div class="flex justify-between items-start">
+                        <div class="text-gray-400 text-sm font-medium uppercase tracking-wider">Pending</div>
+                        <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-yellow-500/20 transition-colors">
+                            <i class="ph ph-hourglass text-yellow-500"></i>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-end">
+                        <div class="text-4xl font-display font-bold text-white group-hover:scale-105 transition-transform origin-left">5</div>
+                        <div class="text-xs text-yellow-500 flex items-center gap-1 bg-yellow-500/10 px-2 py-1 rounded">
+                            Processing
+                        </div>
+                    </div>
+                </div>
+                 <div class="glass-card p-6 rounded-2xl flex flex-col justify-between h-36 border-t-2 border-t-transparent hover:border-t-red-500 group">
+                    <div class="flex justify-between items-start">
+                        <div class="text-gray-400 text-sm font-medium uppercase tracking-wider">Failed</div>
+                        <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                            <i class="ph ph-warning-circle text-red-500"></i>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-end">
+                        <div class="text-4xl font-display font-bold text-white group-hover:scale-105 transition-transform origin-left">01</div>
+                        <div class="text-xs text-red-500 flex items-center gap-1 bg-red-500/10 px-2 py-1 rounded">
+                            Action Req.
+                        </div>
+                    </div>
+                </div>
+                 <div class="glass-card p-6 rounded-2xl flex flex-col justify-between h-36 border-t-2 border-t-transparent hover:border-t-purple-500 group">
+                    <div class="flex justify-between items-start">
+                        <div class="text-gray-400 text-sm font-medium uppercase tracking-wider">Recipients</div>
+                        <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
+                            <i class="ph ph-users text-purple-400"></i>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-end">
+                        <div class="text-4xl font-display font-bold text-white group-hover:scale-105 transition-transform origin-left">25</div>
+                        <div class="text-xs text-purple-400 flex items-center gap-1 bg-purple-500/10 px-2 py-1 rounded">
+                            <i class="ph-bold ph-plus"></i> 2 New
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="space-y-6">
+                     <!-- Profile Card -->
+                    <div class="glass-card p-8 rounded-3xl text-center relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-gradient-to-b from-teal-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div class="relative">
+                            <div class="w-24 h-24 mx-auto rounded-full p-1 border-2 border-teal-500 mb-4 shadow-[0_0_20px_rgba(45,212,191,0.3)]">
+                                <img src="https://i.pravatar.cc/150?img=5" class="w-full h-full rounded-full object-cover">
+                            </div>
+                            <h2 class="text-xl font-bold flex items-center justify-center gap-2">
+                                Syalomita Lim 
+                                <i class="ph-fill ph-seal-check text-blue-400 text-lg" title="Verified"></i>
+                            </h2>
+                            <p class="text-gray-400 text-sm mb-6">syalomita@gmail.com</p>
+                            <div class="flex items-center justify-center gap-2 bg-black/40 rounded-xl p-3 border border-white/5 hover:border-teal-500/30 transition-colors cursor-pointer group/copy">
+                                <i class="ph ph-wallet text-teal-400"></i>
+                                <span class="text-xs text-gray-300 font-mono">0x1aE0...44aB</span>
+                                <i class="ph ph-copy text-gray-500 group-hover/copy:text-white transition-colors"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Balance Card -->
+                    <div class="rounded-3xl p-8 relative overflow-hidden h-64 flex flex-col justify-between shadow-2xl group transition-transform hover:-translate-y-1">
+                        <div class="absolute inset-0 bg-gradient-to-br from-gray-900 via-[#0F3D3E] to-black z-0"></div>
+                        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 z-0"></div>
+                        <div class="absolute -right-10 -top-10 w-40 h-40 bg-teal-500/20 rounded-full blur-3xl"></div>
+                        
+                        <div class="relative z-10">
+                            <div class="flex justify-between items-start mb-2">
+                                <div class="w-12 h-8 rounded bg-gradient-to-r from-yellow-200 to-yellow-500 opacity-80 flex items-center justify-center">
+                                    <div class="w-8 h-5 border border-black/20 rounded-sm grid grid-cols-2 gap-px p-px">
+                                        <div class="bg-black/10"></div><div class="bg-black/10"></div>
+                                        <div class="bg-black/10"></div><div class="bg-black/10"></div>
+                                    </div>
+                                </div>
+                                <i class="ph ph-contactless-payment text-white/50 text-3xl"></i>
+                            </div>
+                            <div class="text-gray-400 text-sm font-medium">Available Balance</div>
+                            <div class="text-4xl font-display font-bold text-white tracking-tight text-shadow">$523.82</div>
+                        </div>
+
+                        <div class="relative z-10 flex gap-3 mt-4">
+                            <button onclick="router.navigate('addmoney')" class="flex-1 py-3 rounded-xl bg-teal-500 text-black font-bold text-sm hover:bg-teal-400 transition shadow-lg shadow-teal-500/20 flex items-center justify-center gap-2">
+                                <i class="ph-bold ph-plus"></i> Top Up
+                            </button>
+                            <button onclick="router.navigate('withdraw')" class="flex-1 py-3 rounded-xl bg-white/10 text-white border border-white/10 font-bold text-sm hover:bg-white/20 transition flex items-center justify-center gap-2">
+                                <i class="ph-bold ph-arrow-up-right"></i> Withdraw
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="glass-card p-6 rounded-2xl flex items-center space-x-4 cursor-pointer hover:bg-white/5 transition group" onclick="router.navigate('support')">
+                        <div class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-teal-500/20 transition-colors">
+                            <i class="ph ph-headset text-2xl text-gray-300 group-hover:text-teal-400"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-white">Need Help?</div>
+                            <div class="text-xs text-gray-400 group-hover:text-teal-400 transition-colors">Contact Support 24/7 ></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card p-6 rounded-3xl h-[660px] flex flex-col">
+                    <div class="flex justify-between items-center mb-6 px-2">
+                        <h3 class="text-xl font-display font-bold">Quick Send</h3>
+                        <a href="#" class="text-xs text-teal-400 hover:text-white transition-colors flex items-center gap-1">
+                            VIEW ALL <i class="ph-bold ph-arrow-right"></i>
+                        </a>
+                    </div>
+                    
+                    <div class="overflow-y-auto pr-2 space-y-3 flex-1 custom-scrollbar">
+                        <!-- Recipients -->
+                        <div class="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 hover:border-teal-500/30 transition group cursor-pointer">
+                            <div class="flex items-center space-x-4">
+                                <div class="relative">
+                                    <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-sm font-bold shadow-lg">JE</div>
+                                    <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#0F3D3E] rounded-full"></div>
+                                </div>
+                                <div>
+                                    <div class="font-bold text-sm text-white group-hover:text-teal-400 transition-colors">Juan Esteban</div>
+                                    <div class="text-xs text-gray-400">juan@email.com</div>
+                                </div>
+                            </div>
+                            <button onclick="router.navigate('send')" class="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-teal-400 hover:bg-teal-500 hover:text-black transition-all">
+                                <i class="ph-bold ph-paper-plane-right"></i>
+                            </button>
+                        </div>
+                         <div class="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 hover:border-teal-500/30 transition group cursor-pointer">
+                            <div class="flex items-center space-x-4">
+                                <div class="relative">
+                                    <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-orange-600 to-red-600 flex items-center justify-center text-sm font-bold shadow-lg">ED</div>
+                                    <div class="absolute bottom-0 right-0 w-3 h-3 bg-gray-500 border-2 border-[#0F3D3E] rounded-full"></div>
+                                </div>
+                                <div>
+                                    <div class="font-bold text-sm text-white group-hover:text-teal-400 transition-colors">Ezequiel Dengra</div>
+                                    <div class="text-xs text-gray-400">ezeq@email.com</div>
+                                </div>
+                            </div>
+                            <button onclick="router.navigate('send')" class="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-teal-400 hover:bg-teal-500 hover:text-black transition-all">
+                                <i class="ph-bold ph-paper-plane-right"></i>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 hover:border-teal-500/30 transition group cursor-pointer">
+                            <div class="flex items-center space-x-4">
+                                <div class="relative">
+                                    <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-green-600 to-teal-600 flex items-center justify-center text-sm font-bold shadow-lg">NP</div>
+                                    <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#0F3D3E] rounded-full"></div>
+                                </div>
+                                <div>
+                                    <div class="font-bold text-sm text-white group-hover:text-teal-400 transition-colors">Nuria Pelayo</div>
+                                    <div class="text-xs text-gray-400">nuria@email.com</div>
+                                </div>
+                            </div>
+                            <button onclick="router.navigate('send')" class="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-teal-400 hover:bg-teal-500 hover:text-black transition-all">
+                                <i class="ph-bold ph-paper-plane-right"></i>
+                            </button>
+                        </div>
+                         <div class="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 hover:border-teal-500/30 transition group cursor-pointer">
+                            <div class="flex items-center space-x-4">
+                                <div class="relative">
+                                    <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-pink-600 to-rose-600 flex items-center justify-center text-sm font-bold shadow-lg">SM</div>
+                                    <div class="absolute bottom-0 right-0 w-3 h-3 bg-gray-500 border-2 border-[#0F3D3E] rounded-full"></div>
+                                </div>
+                                <div>
+                                    <div class="font-bold text-sm text-white group-hover:text-teal-400 transition-colors">Stephan Mulyono</div>
+                                    <div class="text-xs text-gray-400">mul@email.com</div>
+                                </div>
+                            </div>
+                            <button onclick="router.navigate('send')" class="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-teal-400 hover:bg-teal-500 hover:text-black transition-all">
+                                <i class="ph-bold ph-paper-plane-right"></i>
+                            </button>
+                        </div>
+                         <div class="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 hover:border-teal-500/30 transition group cursor-pointer">
+                            <div class="flex items-center space-x-4">
+                                <div class="relative">
+                                    <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-600 to-blue-600 flex items-center justify-center text-sm font-bold shadow-lg">CS</div>
+                                    <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#0F3D3E] rounded-full"></div>
+                                </div>
+                                <div>
+                                    <div class="font-bold text-sm text-white group-hover:text-teal-400 transition-colors">Cliftenton</div>
+                                    <div class="text-xs text-gray-400">clif@email.com</div>
+                                </div>
+                            </div>
+                            <button onclick="router.navigate('send')" class="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-teal-400 hover:bg-teal-500 hover:text-black transition-all">
+                                <i class="ph-bold ph-paper-plane-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card p-6 rounded-3xl h-[660px] flex flex-col">
+                    <h3 class="text-xl font-display font-bold mb-8">Financial Overview</h3>
+                    <div class="flex-1 flex flex-col items-center justify-center relative">
+                        <div class="relative w-56 h-56 flex items-center justify-center mb-10 group">
+                            <div class="absolute inset-0 rounded-full bg-gradient-to-r from-red-500 via-green-500 to-purple-500 opacity-20 blur-xl group-hover:opacity-40 transition-opacity"></div>
+                            <div class="pie-chart w-full h-full relative z-10 shadow-2xl"></div>
+                            <div class="pie-hole w-40 h-40 rounded-full z-20 absolute flex flex-col items-center justify-center bg-[#0d2a2b]">
+                                <span class="text-xs text-gray-400 uppercase tracking-widest">Total</span>
+                                <span class="text-2xl font-bold text-white">$12,450</span>
+                            </div>
+                        </div>
+                        <div class="w-full space-y-4">
+                            <div class="flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition cursor-default">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
+                                    <span class="text-sm font-medium">Sent</span>
+                                </div>
+                                <span class="text-sm font-bold">35%</span>
+                            </div>
+                             <div class="flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition cursor-default">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
+                                    <span class="text-sm font-medium">Request</span>
+                                </div>
+                                <span class="text-sm font-bold">25%</span>
+                            </div>
+                             <div class="flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition cursor-default">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]"></div>
+                                    <span class="text-sm font-medium">Add Money</span>
+                                </div>
+                                <span class="text-sm font-bold">25%</span>
+                            </div>
+                             <div class="flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition cursor-default">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-3 h-3 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"></div>
+                                    <span class="text-sm font-medium">Withdrawal</span>
+                                </div>
+                                <span class="text-sm font-bold">15%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= VIEW: ADD MONEY & WITHDRAW (Same) ================= -->
+    <div id="view-addmoney" class="view-section">
+        <div class="max-w-xl mx-auto px-6">
+            <button onclick="router.navigate('dashboard')" class="text-gray-400 hover:text-white mb-6 flex items-center gap-2">
+                <i class="ph ph-arrow-left"></i> Back to Dashboard
+            </button>
+            <h2 class="text-3xl font-display font-bold mb-2">Add Money</h2>
+            <p class="text-gray-400 mb-8">Top up your wallet balance instantly.</p>
+            <div class="glass-card p-8 rounded-3xl">
+                <form onsubmit="event.preventDefault(); router.navigate('dashboard');">
+                    <div class="mb-8">
+                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Amount to Add (USD)</label>
+                        <div class="relative">
+                            <span class="absolute left-4 top-4 text-xl text-teal-400">$</span>
+                            <input type="number" class="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-10 pr-4 text-2xl font-bold text-white focus:outline-none focus:border-teal-500 transition" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="space-y-4 mb-8">
+                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider">Payment Method</label>
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="payment" class="hidden custom-radio" checked>
+                            <div class="w-full p-4 rounded-xl border border-white/10 bg-white/5 flex items-center justify-between hover:bg-white/10 transition">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center"><i class="ph ph-bank text-xl"></i></div>
+                                    <div>
+                                        <div class="font-bold">Bank Transfer</div>
+                                        <div class="text-xs text-gray-400">ACH / Wire</div>
+                                    </div>
+                                </div>
+                                <i class="ph ph-check-circle text-teal-400 text-xl hidden"></i>
+                            </div>
+                        </label>
+                         <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="payment" class="hidden custom-radio">
+                            <div class="w-full p-4 rounded-xl border border-white/10 bg-white/5 flex items-center justify-between hover:bg-white/10 transition">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center"><i class="ph ph-credit-card text-xl"></i></div>
+                                    <div>
+                                        <div class="font-bold">Debit / Credit Card</div>
+                                        <div class="text-xs text-gray-400">Instant</div>
+                                    </div>
+                                </div>
+                                <i class="ph ph-check-circle text-teal-400 text-xl hidden"></i>
+                            </div>
+                        </label>
+                         <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="payment" class="hidden custom-radio">
+                            <div class="w-full p-4 rounded-xl border border-white/10 bg-white/5 flex items-center justify-between hover:bg-white/10 transition">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center"><i class="ph ph-currency-btc text-xl"></i></div>
+                                    <div>
+                                        <div class="font-bold">Crypto Deposit</div>
+                                        <div class="text-xs text-gray-400">ETH, BTC, USDT</div>
+                                    </div>
+                                </div>
+                                <i class="ph ph-check-circle text-teal-400 text-xl hidden"></i>
+                            </div>
+                        </label>
+                    </div>
+                    <button type="submit" class="w-full bg-teal-500 text-black font-bold py-4 rounded-xl shadow-[0_0_15px_rgba(45,212,191,0.4)] hover:bg-teal-400 transition">Confirm Deposit</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-withdraw" class="view-section">
+        <div class="max-w-xl mx-auto px-6">
+            <button onclick="router.navigate('dashboard')" class="text-gray-400 hover:text-white mb-6 flex items-center gap-2">
+                <i class="ph ph-arrow-left"></i> Back to Dashboard
+            </button>
+            <h2 class="text-3xl font-display font-bold mb-2">Withdraw</h2>
+            <p class="text-gray-400 mb-8">Transfer funds to your bank or external wallet.</p>
+            <div class="glass-card p-8 rounded-3xl">
+                <form onsubmit="event.preventDefault(); router.navigate('dashboard');">
+                    <div class="flex justify-between items-center mb-6 p-4 bg-teal-500/10 border border-teal-500/30 rounded-xl">
+                        <span class="text-sm text-teal-400">Available to Withdraw</span>
+                        <span class="text-xl font-bold">$523.82</span>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Amount to Withdraw</label>
+                        <div class="relative">
+                            <span class="absolute left-4 top-4 text-xl text-teal-400">$</span>
+                            <input type="number" class="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-10 pr-4 text-2xl font-bold text-white focus:outline-none focus:border-teal-500 transition" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="mb-8">
+                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Withdraw To</label>
+                        <select class="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-4 text-white focus:outline-none focus:border-teal-500 transition appearance-none">
+                            <option>Bank of America **** 4321</option>
+                            <option>Chase Bank **** 9876</option>
+                            <option>External Crypto Wallet</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 transition">Withdraw Funds</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= VIEW: SEND (IMPROVED) ================= -->
+    <div id="view-send" class="view-section">
+        <div class="max-w-6xl mx-auto px-6 relative">
+            <!-- Background Decoration -->
+            <div class="absolute -top-20 -right-20 w-96 h-96 bg-teal-500/5 rounded-full blur-[100px] pointer-events-none"></div>
+
+            <div class="flex items-center gap-4 mb-8">
+                <div class="w-12 h-12 rounded-2xl bg-teal-500/10 flex items-center justify-center text-teal-400 border border-teal-500/20">
+                    <i class="ph-fill ph-paper-plane-tilt text-2xl"></i>
+                </div>
+                <div>
+                    <h2 class="text-3xl font-display font-bold">Send Money</h2>
+                    <p class="text-sm text-gray-400">Transfer funds globally in seconds.</p>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Main Form -->
+                <div class="lg:col-span-2 glass-card p-8 md:p-10 rounded-3xl border border-teal-500/20 relative overflow-hidden">
+                     <form onsubmit="event.preventDefault(); router.navigate('activity');">
+                        <div class="space-y-8">
+                            <!-- Input Group -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="group">
+                                    <label class="block text-xs font-bold text-teal-400 uppercase tracking-wider mb-2 group-focus-within:text-white transition-colors">From Account</label>
+                                    <div class="relative">
+                                        <div class="absolute left-4 top-3.5 w-8 h-5 rounded bg-gradient-to-r from-yellow-400 to-yellow-600 flex items-center justify-center shadow-md">
+                                            <div class="w-5 h-3 border border-black/20 rounded-[1px] grid grid-cols-2 gap-px p-px">
+                                                <div class="bg-black/20"></div><div class="bg-black/20"></div><div class="bg-black/20"></div><div class="bg-black/20"></div>
+                                            </div>
+                                        </div>
+                                        <input type="text" value="0x1aE0...44aB (Main Wallet)" class="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-14 pr-4 text-white font-mono text-sm focus:outline-none focus:border-teal-500 transition cursor-not-allowed text-gray-300" readonly>
+                                        <i class="ph-fill ph-caret-down absolute right-4 top-4 text-gray-500"></i>
+                                    </div>
+                                </div>
+
+                                <div class="group">
+                                    <label class="block text-xs font-bold text-teal-400 uppercase tracking-wider mb-2 group-focus-within:text-white transition-colors">Recipient</label>
+                                    <div class="relative">
+                                        <i class="ph-fill ph-user-circle absolute left-4 top-3.5 text-gray-400 text-xl group-focus-within:text-teal-400"></i>
+                                        <input type="text" placeholder="Wallet Address / ENS" class="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white font-mono text-sm focus:outline-none focus:border-teal-500 transition placeholder-gray-600">
+                                        <i class="ph ph-scan absolute right-4 top-3.5 text-teal-400 cursor-pointer hover:text-white"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Amount & Currency -->
+                            <div class="p-6 bg-white/5 rounded-2xl border border-white/5 hover:border-white/10 transition-colors">
+                                <div class="flex justify-between mb-2">
+                                    <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">You Send</label>
+                                    <div class="text-xs text-teal-400 font-bold">Max: $523.82</div>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <div class="relative flex-1">
+                                        <input type="number" placeholder="0.00" class="w-full bg-transparent border-none text-4xl font-bold text-white focus:ring-0 p-0 placeholder-gray-700" style="appearance: none;">
+                                    </div>
+                                    <div class="flex items-center gap-2 bg-black/40 rounded-full px-3 py-2 border border-white/10 cursor-pointer hover:border-teal-500/50 transition">
+                                        <img src="https://upload.wikimedia.org/wikipedia/en/a/a4/Flag_of_the_United_States.svg" class="w-5 h-5 rounded-full object-cover">
+                                        <span class="font-bold">USD</span>
+                                        <i class="ph-bold ph-caret-down text-xs text-gray-400"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Gas Fee -->
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Network Speed (Gas Fee)</label>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <label class="cursor-pointer relative group">
+                                        <input type="radio" name="speed" class="peer hidden">
+                                        <div class="p-4 rounded-xl border border-white/10 bg-white/5 peer-checked:bg-teal-500/10 peer-checked:border-teal-500 peer-checked:shadow-[0_0_15px_rgba(45,212,191,0.2)] transition-all hover:bg-white/10">
+                                            <i class="ph-fill ph-tortoise text-2xl text-gray-400 peer-checked:text-teal-400 mb-2 block"></i>
+                                            <div class="font-bold text-sm">Slow</div>
+                                            <div class="text-xs text-gray-500 mt-1">~5 mins</div>
+                                            <div class="text-xs font-mono text-gray-400 mt-2">$1.20</div>
+                                        </div>
+                                    </label>
+                                    <label class="cursor-pointer relative group">
+                                        <input type="radio" name="speed" class="peer hidden" checked>
+                                        <div class="p-4 rounded-xl border border-white/10 bg-white/5 peer-checked:bg-teal-500/10 peer-checked:border-teal-500 peer-checked:shadow-[0_0_15px_rgba(45,212,191,0.2)] transition-all hover:bg-white/10">
+                                            <i class="ph-fill ph-car text-2xl text-gray-400 peer-checked:text-teal-400 mb-2 block"></i>
+                                            <div class="font-bold text-sm">Standard</div>
+                                            <div class="text-xs text-gray-500 mt-1">~2 mins</div>
+                                            <div class="text-xs font-mono text-gray-400 mt-2">$2.50</div>
+                                        </div>
+                                    </label>
+                                    <label class="cursor-pointer relative group">
+                                        <input type="radio" name="speed" class="peer hidden">
+                                        <div class="p-4 rounded-xl border border-white/10 bg-white/5 peer-checked:bg-teal-500/10 peer-checked:border-teal-500 peer-checked:shadow-[0_0_15px_rgba(45,212,191,0.2)] transition-all hover:bg-white/10">
+                                            <i class="ph-fill ph-rocket-launch text-2xl text-gray-400 peer-checked:text-teal-400 mb-2 block"></i>
+                                            <div class="font-bold text-sm">Instant</div>
+                                            <div class="text-xs text-gray-500 mt-1">~10s</div>
+                                            <div class="text-xs font-mono text-gray-400 mt-2">$4.80</div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="w-full bg-gradient-to-r from-teal-400 to-teal-600 text-black font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(45,212,191,0.4)] hover:shadow-[0_0_30px_rgba(45,212,191,0.6)] hover:scale-[1.01] transition-all flex items-center justify-center gap-2 group">
+                                <span>Confirm Transaction</span>
+                                <i class="ph-bold ph-arrow-right group-hover:translate-x-1 transition-transform"></i>
+                            </button>
+                        </div>
+                     </form>
+                </div>
+
+                <!-- Right Summary -->
+                <div class="lg:col-span-1 space-y-6">
+                    <!-- Preview Card -->
+                    <div class="glass-card p-6 rounded-3xl border border-white/5">
+                        <h3 class="font-display font-bold mb-4 text-gray-300">Estimated Total</h3>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm text-gray-500">Amount</span>
+                            <span class="font-mono">$0.00</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-sm text-gray-500">Est. Fee</span>
+                            <span class="font-mono text-teal-400">+$2.50</span>
+                        </div>
+                        <div class="border-t border-white/10 my-4"></div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold">Total</span>
+                            <span class="font-mono text-xl font-bold">$2.50</span>
+                        </div>
+                    </div>
+
+                    <!-- Recent -->
+                    <div>
+                        <h3 class="font-display font-bold mb-4 text-gray-300 px-2">Recent Contacts</h3>
+                        <div class="space-y-2">
+                             <div class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 cursor-pointer transition">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-xs font-bold">JE</div>
+                                <div>
+                                    <div class="text-sm font-bold">Juan Esteban</div>
+                                    <div class="text-xs text-gray-500">0x8a...2a1C</div>
+                                </div>
+                            </div>
+                             <div class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 cursor-pointer transition">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-orange-600 to-red-600 flex items-center justify-center text-xs font-bold">ED</div>
+                                <div>
+                                    <div class="text-sm font-bold">Ezequiel Dengra</div>
+                                    <div class="text-xs text-gray-500">0x7b...3b2D</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= VIEW: ACTIVITY (Same) ================= -->
+    <div id="view-activity" class="view-section">
+        <div class="max-w-5xl mx-auto px-6">
+            <div class="flex justify-between items-center mb-8">
+                <h2 class="text-3xl font-display font-bold">Activity Timeline</h2>
+                <div class="glass-card px-4 py-2 rounded-lg text-sm flex items-center gap-2 cursor-pointer">
+                    All Activities <i class="ph ph-caret-down"></i>
+                </div>
+            </div>
+            <div class="flex items-center my-8">
+                <div class="h-px bg-white/10 flex-1"></div>
+                <span class="px-4 text-gray-500 text-sm">25 November 2025</span>
+                <div class="h-px bg-white/10 flex-1"></div>
+            </div>
+            <div class="glass-card p-6 rounded-2xl mb-4 border-l-4 border-orange-500">
+                <div class="flex items-start gap-4">
+                    <div class="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center text-white shrink-0">
+                        <i class="ph ph-paper-plane-tilt text-2xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between mb-2">
+                            <h3 class="font-bold text-lg">Send</h3>
+                            <span class="text-gray-400 text-sm">1h ago</span>
+                        </div>
+                        <p class="text-gray-300 mb-4">500 USD to 0x9a...7e2F</p>
+                        
+                        <div class="bg-black/30 p-4 rounded-xl grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <div class="text-gray-500 text-xs uppercase mb-1">Transaction Hash</div>
+                                <div class="font-mono text-gray-300">0xabcd...ef01</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-500 text-xs uppercase mb-1">To</div>
+                                <div class="font-mono text-gray-300 truncate">0x9a1B7e2F3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-500 text-xs uppercase mb-1">Gas Fee</div>
+                                <div class="text-gray-300">0.0018 ETH</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+             <div class="glass-card p-6 rounded-2xl mb-4 border-l-4 border-green-500">
+                <div class="flex items-start gap-4">
+                    <div class="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center text-white shrink-0">
+                        <i class="ph ph-download-simple text-2xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between mb-2">
+                            <h3 class="font-bold text-lg">Receive</h3>
+                            <span class="text-gray-400 text-sm">3h ago</span>
+                        </div>
+                        <p class="text-gray-300 mb-4">1200 USD from 0x8a...2a1C</p>
+                        
+                        <div class="bg-black/30 p-4 rounded-xl grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <div class="text-gray-500 text-xs uppercase mb-1">Transaction Hash</div>
+                                <div class="font-mono text-gray-300">0xffee...aa99</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-500 text-xs uppercase mb-1">From</div>
+                                <div class="font-mono text-gray-300 truncate">0x8a1B7e2F3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= VIEW: SUPPORT (IMPROVED) ================= -->
+    <div id="view-support" class="view-section">
+        <div class="max-w-6xl mx-auto px-6 relative">
+            
+            <div class="text-center mb-16 relative z-10">
+                <h2 class="text-4xl md:text-5xl font-display font-bold mb-6">How can we help?</h2>
+                <div class="max-w-lg mx-auto relative group">
+                    <div class="absolute inset-0 bg-teal-500/20 rounded-full blur-xl group-hover:blur-2xl transition-all"></div>
+                    <div class="relative flex items-center">
+                        <i class="ph-bold ph-magnifying-glass absolute left-5 text-gray-400 group-focus-within:text-teal-400 text-xl transition-colors"></i>
+                        <input type="text" placeholder="Search for answers, topics..." class="w-full bg-black/80 backdrop-blur-md border border-white/20 rounded-full py-4 pl-14 pr-6 text-white placeholder-gray-500 focus:outline-none focus:border-teal-500 focus:shadow-[0_0_20px_rgba(45,212,191,0.2)] transition-all">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Support Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+                <div class="glass-card p-8 rounded-3xl hover:-translate-y-2 transition-transform duration-300 group cursor-pointer">
+                    <div class="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-6 group-hover:scale-110 transition-transform">
+                        <i class="ph-fill ph-envelope-simple text-3xl"></i>
+                    </div>
+                    <div class="font-bold text-xl mb-2">Email Support</div>
+                    <p class="text-sm text-gray-400 mb-4">Get a response within 24 hours.</p>
+                    <div class="text-blue-400 text-sm font-bold flex items-center gap-1 group-hover:gap-2 transition-all">
+                        Send Email <i class="ph-bold ph-arrow-right"></i>
+                    </div>
+                </div>
+                
+                <div class="glass-card p-8 rounded-3xl hover:-translate-y-2 transition-transform duration-300 group cursor-pointer border-teal-500/30 shadow-[0_0_30px_rgba(45,212,191,0.05)]">
+                    <div class="w-14 h-14 rounded-2xl bg-teal-500/10 flex items-center justify-center text-teal-400 mb-6 group-hover:scale-110 transition-transform">
+                        <i class="ph-fill ph-chat-circle-text text-3xl"></i>
+                    </div>
+                    <div class="font-bold text-xl mb-2">Live Chat</div>
+                    <p class="text-sm text-gray-400 mb-4">Instant answers 24/7.</p>
+                    <div class="text-teal-400 text-sm font-bold flex items-center gap-1 group-hover:gap-2 transition-all">
+                        Start Chat <i class="ph-bold ph-arrow-right"></i>
+                    </div>
+                </div>
+                
+                <div class="glass-card p-8 rounded-3xl hover:-translate-y-2 transition-transform duration-300 group cursor-pointer">
+                    <div class="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 mb-6 group-hover:scale-110 transition-transform">
+                        <i class="ph-fill ph-phone-call text-3xl"></i>
+                    </div>
+                    <div class="font-bold text-xl mb-2">Phone Support</div>
+                    <p class="text-sm text-gray-400 mb-4">Mon-Fri, 9AM-6PM EST.</p>
+                    <div class="text-purple-400 text-sm font-bold flex items-center gap-1 group-hover:gap-2 transition-all">
+                        Call Us <i class="ph-bold ph-arrow-right"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FAQ -->
+            <div class="max-w-3xl mx-auto">
+                <h3 class="text-2xl font-display font-bold mb-8 text-center">Frequently Asked Questions</h3>
+                <div class="space-y-4">
+                    <details class="group glass-card rounded-2xl overflow-hidden border-transparent">
+                        <summary class="flex justify-between items-center font-medium cursor-pointer list-none p-6 bg-white/5 hover:bg-white/10 transition">
+                            <span class="text-lg">What is blockchain money transfer?</span>
+                            <span class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center transition-transform group-open:rotate-180">
+                                <i class="ph-bold ph-caret-down text-teal-400"></i>
+                            </span>
+                        </summary>
+                        <div class="text-gray-400 px-6 pb-6 pt-2 leading-relaxed border-t border-white/5">
+                            It uses decentralized networks (like Ethereum or Solana) to move funds securely peer-to-peer, bypassing traditional banking intermediaries. This often results in lower fees and faster settlement times.
+                        </div>
+                    </details>
+                    
+                     <details class="group glass-card rounded-2xl overflow-hidden border-transparent">
+                        <summary class="flex justify-between items-center font-medium cursor-pointer list-none p-6 bg-white/5 hover:bg-white/10 transition">
+                            <span class="text-lg">How long does a transaction take?</span>
+                            <span class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center transition-transform group-open:rotate-180">
+                                <i class="ph-bold ph-caret-down text-teal-400"></i>
+                            </span>
+                        </summary>
+                        <div class="text-gray-400 px-6 pb-6 pt-2 leading-relaxed border-t border-white/5">
+                            Depending on gas fees selected, it usually takes between 10 seconds (Fast/Instant) to 5 minutes (Slow). Network congestion can occasionally impact these times.
+                        </div>
+                    </details>
+
+                     <details class="group glass-card rounded-2xl overflow-hidden border-transparent">
+                        <summary class="flex justify-between items-center font-medium cursor-pointer list-none p-6 bg-white/5 hover:bg-white/10 transition">
+                            <span class="text-lg">Is my data secure?</span>
+                            <span class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center transition-transform group-open:rotate-180">
+                                <i class="ph-bold ph-caret-down text-teal-400"></i>
+                            </span>
+                        </summary>
+                        <div class="text-gray-400 px-6 pb-6 pt-2 leading-relaxed border-t border-white/5">
+                            Yes. We use military-grade AES-256 encryption for personal data and non-custodial wallet connections, meaning we never have direct access to your private keys.
+                        </div>
+                    </details>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= VIEW: SIGN IN / UP (Same) ================= -->
+    <div id="view-signin" class="view-section flex items-center justify-center min-h-screen">
+        <div class="glass-card p-10 rounded-3xl w-full max-w-md relative overflow-hidden">
+            <div class="absolute -top-10 -right-10 w-32 h-32 bg-teal-500/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-display font-bold mb-2">Welcome Back</h2>
+                <p class="text-gray-400 text-sm">Enter your credentials to access your wallet.</p>
+            </div>
+            <form onsubmit="event.preventDefault(); router.navigate('dashboard');">
+                <div class="space-y-5">
+                    <div class="group">
+                        <label class="block text-xs font-bold text-teal-400 uppercase tracking-wider mb-2 group-focus-within:text-white transition-colors">Username</label>
+                        <div class="relative">
+                            <i class="ph ph-user absolute left-4 top-3.5 text-gray-500 text-lg group-focus-within:text-teal-400 transition-colors"></i>
+                            <input type="text" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-teal-500 focus:bg-black/50 transition-all" placeholder="Enter your username" required>
+                        </div>
+                    </div>
+                    <div class="group">
+                        <label class="block text-xs font-bold text-teal-400 uppercase tracking-wider mb-2 group-focus-within:text-white transition-colors">Password</label>
+                        <div class="relative">
+                            <i class="ph ph-lock-key absolute left-4 top-3.5 text-gray-500 text-lg group-focus-within:text-teal-400 transition-colors"></i>
+                            <input type="password" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-teal-500 focus:bg-black/50 transition-all" placeholder="••••••••" required>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between text-xs">
+                        <label class="flex items-center gap-2 cursor-pointer text-gray-400 hover:text-white">
+                            <input type="checkbox" class="accent-teal-500 rounded">
+                            Remember me
+                        </label>
+                        <a href="#" class="text-teal-400 hover:text-teal-300 hover:underline">Forgot Password?</a>
+                    </div>
+                    <button type="submit" class="w-full bg-white text-black font-bold py-3.5 rounded-xl hover:bg-gray-200 hover:scale-[1.02] transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+                        SIGN IN
+                    </button>
+                    <div class="relative flex py-2 items-center">
+                        <div class="flex-grow border-t border-white/10"></div>
+                        <span class="flex-shrink mx-4 text-gray-500 text-xs uppercase">Or connect with</span>
+                        <div class="flex-grow border-t border-white/10"></div>
+                    </div>
+                    <button type="button" class="w-full bg-[#f6851b]/10 border border-[#f6851b]/50 text-[#f6851b] font-bold py-3 rounded-xl hover:bg-[#f6851b]/20 transition-all flex items-center justify-center gap-3">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" class="w-6 h-6" alt="MetaMask">
+                        Connect MetaMask
+                    </button>
+                    <div class="text-center mt-6">
+                        <button type="button" onclick="router.navigate('landing')" class="text-xs text-gray-500 hover:text-white transition-colors">
+                            Return to Home
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="view-signup" class="view-section flex items-center justify-center min-h-screen">
+        <div class="glass-card p-10 rounded-3xl w-full max-w-md relative overflow-hidden">
+            <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-display font-bold mb-2">Create Account</h2>
+                <p class="text-gray-400 text-sm">Join the borderless financial revolution.</p>
+            </div>
+            <form onsubmit="event.preventDefault(); router.navigate('dashboard');">
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                         <input type="text" placeholder="First Name" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-white placeholder-gray-600 focus:outline-none focus:border-teal-500 focus:bg-black/50 transition-all">
+                         <input type="text" placeholder="Last Name" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-white placeholder-gray-600 focus:outline-none focus:border-teal-500 focus:bg-black/50 transition-all">
+                    </div>
+                    <input type="email" placeholder="Email Address" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-white placeholder-gray-600 focus:outline-none focus:border-teal-500 focus:bg-black/50 transition-all">
+                    <input type="tel" placeholder="Phone Number" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-white placeholder-gray-600 focus:outline-none focus:border-teal-500 focus:bg-black/50 transition-all">
+                    <input type="password" placeholder="Password" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-white placeholder-gray-600 focus:outline-none focus:border-teal-500 focus:bg-black/50 transition-all">
+                    <input type="password" placeholder="Confirm Password" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-white placeholder-gray-600 focus:outline-none focus:border-teal-500 focus:bg-black/50 transition-all">
+                    <div class="flex items-start gap-3 mt-2">
+                        <input type="checkbox" id="terms" class="mt-1 accent-teal-500 rounded cursor-pointer">
+                        <label for="terms" class="text-xs text-gray-400 cursor-pointer hover:text-gray-300">
+                            I agree to the <span class="text-teal-400">Terms of Service</span> and <span class="text-teal-400">Privacy Policy</span>.
+                        </label>
+                    </div>
+                    <button type="submit" class="w-full bg-teal-500 text-black font-bold py-3.5 rounded-xl hover:bg-teal-400 hover:shadow-[0_0_20px_rgba(45,212,191,0.4)] transition-all duration-300 mt-4">
+                        REGISTER NOW
+                    </button>
+                    <div class="text-center text-xs text-gray-400 mt-4">
+                        Already have an account? <span class="text-teal-400 cursor-pointer hover:underline font-bold" onclick="router.navigate('signin')">Sign In here</span>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ================= LOGIC: ROUTER & ANIMATION ================= -->
+    <script>
+        // --- 1. Router Logic ---
+        const router = {
+            activePage: 'landing',
+            
+            navigate: function(pageId) {
+                // 1. Update Active State
+                this.activePage = pageId;
+
+                // 2. Hide all sections
+                document.querySelectorAll('.view-section').forEach(el => {
+                    el.classList.remove('active-view');
+                    el.style.opacity = 0;
+                    el.style.display = 'none';
+                });
+
+                // 3. Show Target
+                const target = document.getElementById('view-' + pageId);
+                if (target) {
+                    target.style.display = (pageId === 'signin' || pageId === 'signup') ? 'flex' : 'block';
+                    
+                    // Animate In
+                    anime({
+                        targets: target,
+                        opacity: [0, 1],
+                        translateY: [20, 0],
+                        duration: 600,
+                        easing: 'easeOutQuad'
+                    });
+                    
+                    target.classList.add('active-view');
+                }
+
+                // 4. Update Navbar State
+                this.updateNavbar(pageId);
+                
+                // 5. Scroll to top
+                window.scrollTo(0, 0);
+            },
+
+            updateNavbar: function(pageId) {
+                const navLinks = document.querySelectorAll('.nav-link');
+                const authBtns = document.getElementById('auth-buttons');
+                const userProfile = document.getElementById('user-profile');
+                const navbar = document.getElementById('navbar');
+
+                // Toggle "Logged In" UI
+                const isAuthPage = ['signin', 'signup', 'landing'].includes(pageId);
+                
+                if (isAuthPage) {
+                    authBtns.classList.remove('hidden');
+                    userProfile.classList.add('hidden');
+                    navbar.classList.remove('bg-remmit-bg'); 
+                } else {
+                    // Logged In Mode
+                    authBtns.classList.add('hidden');
+                    userProfile.classList.remove('hidden');
+                    navbar.classList.add('bg-remmit-bg'); // Solid background
+                }
+
+                // Active Link Styling
+                navLinks.forEach(link => {
+                    if(link.getAttribute('onclick').includes(pageId)) {
+                        link.classList.add('active');
+                    } else {
+                        link.classList.remove('active');
+                    }
+                });
+            }
+        };
+
+        // --- 2. Three.js Background ---
+        const initThreeJS = () => {
+            const container = document.getElementById('canvas-container');
+            const scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x011515, 0.0008); 
+
+            const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.z = 100;
+
+            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            const particlesGeometry = new THREE.BufferGeometry();
+            const particlesCount = 2000;
+            const posArray = new Float32Array(particlesCount * 3);
+
+            for(let i = 0; i < particlesCount * 3; i++) {
+                posArray[i] = (Math.random() - 0.5) * 2000;
+                posArray[i+1] = (Math.random() - 0.5) * 2000;
+                posArray[i+2] = (Math.random() - 0.5) * 2000;
+            }
+
+            particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const particlesMaterial = new THREE.PointsMaterial({
+                size: 1.5,
+                color: 0x2DD4BF,
+                transparent: true,
+                opacity: 0.8,
+            });
+            const particlesMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+            scene.add(particlesMesh);
+
+            let mouseX = 0;
+            let mouseY = 0;
+            const windowHalfX = window.innerWidth / 2;
+            const windowHalfY = window.innerHeight / 2;
+
+            document.addEventListener('mousemove', (event) => {
+                mouseX = (event.clientX - windowHalfX) * 0.05;
+                mouseY = (event.clientY - windowHalfY) * 0.05;
+            });
+
+            const animate = () => {
+                particlesMesh.rotation.y += 0.0005;
+                particlesMesh.rotation.x += 0.0002;
+                camera.position.x += (mouseX - camera.position.x) * 0.01;
+                camera.position.y += (-mouseY - camera.position.y) * 0.01;
+                camera.lookAt(scene.position);
+                renderer.render(scene, camera);
+                requestAnimationFrame(animate);
+            };
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        };
+
+        // --- 3. Animation Logic ---
+        const initAnimations = () => {
+            anime({
+                targets: '.hero-text',
+                translateY: [50, 0],
+                opacity: [0, 1],
+                duration: 1200,
+                delay: anime.stagger(200, {start: 500}),
+                easing: 'easeOutExpo'
+            });
+
+            anime({
+                targets: '.hero-btn',
+                scale: [0.9, 1],
+                opacity: [0, 1],
+                duration: 1000,
+                delay: 1200,
+                easing: 'easeOutElastic(1, .8)'
+            });
+
+            const startCounters = () => {
+                anime({
+                    targets: '#stat-users',
+                    innerHTML: [0, 500],
+                    round: 1, 
+                    easing: 'easeOutExpo',
+                    duration: 2000,
+                    update: function(a) {
+                        const value = a.animations[0].currentValue;
+                        if(document.querySelector('#stat-users'))
+                            document.querySelector('#stat-users').innerHTML = Math.round(value) + 'k+';
+                    }
+                });
+                anime({
+                    targets: '#stat-volume',
+                    innerHTML: [0, 2.5],
+                    round: 10,
+                    easing: 'easeOutExpo',
+                    duration: 2500
+                });
+                anime({
+                    targets: '#stat-countries',
+                    innerHTML: [0, 150],
+                    round: 1,
+                    easing: 'easeOutExpo',
+                    duration: 2200,
+                    update: function(a) {
+                        const value = a.animations[0].currentValue;
+                        if(document.querySelector('#stat-countries'))
+                            document.querySelector('#stat-countries').innerHTML = Math.round(value) + '+';
+                    }
+                });
+                anime({
+                    targets: '#stat-speed',
+                    innerHTML: [0, 1.2],
+                    round: 10,
+                    easing: 'easeOutExpo',
+                    duration: 1800
+                });
+            };
+
+            anime({
+                targets: '.stat-item',
+                translateY: [20, 0],
+                opacity: [0, 1],
+                duration: 1000,
+                delay: anime.stagger(200, {start: 1400}),
+                easing: 'easeOutExpo',
+                complete: startCounters
+            });
+
+            anime({
+                targets: '.feature-card',
+                translateY: [50, 0],
+                opacity: [0, 1],
+                delay: anime.stagger(150, {start: 1600}),
+                duration: 1000,
+                easing: 'easeOutExpo'
+            });
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initThreeJS();
+            router.navigate('landing'); 
+            initAnimations();
+            window.onpopstate = function(event) {
+                if(event.state && event.state.page) {
+                    router.navigate(event.state.page);
+                }
+            };
+        });
+
+    </script>
+</body>
+</html>
